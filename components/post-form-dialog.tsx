@@ -20,11 +20,14 @@ import { Switch } from "@/components/ui/switch"
 import {
   Select,
   SelectContent,
+  SelectGroup,
   SelectItem,
+  SelectLabel,
+  SelectSeparator,
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
-import { genres, type BookPost, type Genre } from "@/lib/data"
+import { genreGroups, type BookPost, type Genre, type GenreGroup } from "@/lib/data"
 
 const postSchema = z.object({
   title: z.string().min(1, "Le titre est requis"),
@@ -34,7 +37,7 @@ const postSchema = z.object({
   date: z.string().min(1, "La date est requise"),
   excerpt: z.string().min(1, "L'extrait est requis"),
   review: z.string().optional().default(""),
-  coverImage: z.string().optional().default(""),
+  coverImagesText: z.string().optional().default(""),
   instagramUrl: z.string().optional().default(""),
   tags: z.string().optional().default(""),
   isFavorite: z.boolean().default(false),
@@ -48,6 +51,8 @@ type PostFormDialogProps = {
   onSubmit: (data: Omit<BookPost, "id">) => void | Promise<void>
   editingPost?: BookPost | null
 }
+
+const groupNames = Object.keys(genreGroups) as GenreGroup[]
 
 function RatingInput({
   value,
@@ -79,6 +84,15 @@ function RatingInput({
   )
 }
 
+function parseCoverImages(input: string | undefined) {
+  if (!input) return []
+
+  return input
+    .split(/[,\n]/)
+    .map((url) => url.trim())
+    .filter(Boolean)
+}
+
 export function PostFormDialog({
   open,
   onOpenChange,
@@ -104,7 +118,7 @@ export function PostFormDialog({
       date: new Date().toISOString().split("T")[0],
       excerpt: "",
       review: "",
-      coverImage: "",
+      coverImagesText: "",
       instagramUrl: "",
       tags: "",
       isFavorite: false,
@@ -126,9 +140,9 @@ export function PostFormDialog({
           date: editingPost.date,
           excerpt: editingPost.excerpt,
           review: editingPost.review || "",
-          coverImage: editingPost.coverImage?.startsWith("/placeholder")
-            ? ""
-            : editingPost.coverImage || "",
+          coverImagesText: editingPost.coverImages
+            .filter((image) => !image.startsWith("/placeholder"))
+            .join("\n"),
           instagramUrl: editingPost.instagramUrl || "",
           tags: editingPost.tags.join(", "),
           isFavorite: editingPost.isFavorite,
@@ -142,7 +156,7 @@ export function PostFormDialog({
           date: new Date().toISOString().split("T")[0],
           excerpt: "",
           review: "",
-          coverImage: "",
+          coverImagesText: "",
           instagramUrl: "",
           tags: "",
           isFavorite: false,
@@ -152,6 +166,12 @@ export function PostFormDialog({
   }, [open, editingPost, reset])
 
   async function onFormSubmit(data: PostFormData) {
+    const coverImages = parseCoverImages(data.coverImagesText)
+    const defaultImage = `/placeholder.svg?height=600&width=400`
+
+    const normalizedCoverImages =
+      coverImages.length > 0 ? coverImages : [defaultImage]
+
     const bookPost: Omit<BookPost, "id"> = {
       title: data.title.trim(),
       author: data.author.trim(),
@@ -160,9 +180,8 @@ export function PostFormDialog({
       date: data.date,
       excerpt: data.excerpt.trim(),
       review: data.review?.trim() || "",
-      coverImage:
-        data.coverImage?.trim() ||
-        `/placeholder.svg?height=600&width=400`,
+      coverImage: normalizedCoverImages[0],
+      coverImages: normalizedCoverImages,
       tags: data.tags
         ? data.tags
             .split(",")
@@ -194,7 +213,6 @@ export function PostFormDialog({
           onSubmit={handleSubmit(onFormSubmit)}
           className="flex flex-col gap-5 pt-2"
         >
-          {/* Title & Author row */}
           <div className="grid gap-4 sm:grid-cols-2">
             <div className="flex flex-col gap-2">
               <Label htmlFor="title">
@@ -230,7 +248,6 @@ export function PostFormDialog({
             </div>
           </div>
 
-          {/* Genre & Date row */}
           <div className="grid gap-4 sm:grid-cols-2">
             <div className="flex flex-col gap-2">
               <Label>
@@ -240,14 +257,25 @@ export function PostFormDialog({
                 value={genreValue}
                 onValueChange={(v) => setValue("genre", v)}
               >
-                <SelectTrigger className="bg-background">
+                <SelectTrigger className="bg-background w-full">
                   <SelectValue placeholder="Choisir un genre" />
                 </SelectTrigger>
                 <SelectContent>
-                  {genres.map((g) => (
-                    <SelectItem key={g} value={g}>
-                      {g}
-                    </SelectItem>
+                  {groupNames.map((group, index) => (
+                    <div key={group}>
+                      <SelectGroup>
+                        <SelectLabel>{group}</SelectLabel>
+                        {genreGroups[group].map((subcategory) => {
+                          const value = `${group} - ${subcategory}`
+                          return (
+                            <SelectItem key={value} value={value}>
+                              {subcategory}
+                            </SelectItem>
+                          )
+                        })}
+                      </SelectGroup>
+                      {index < groupNames.length - 1 && <SelectSeparator />}
+                    </div>
                   ))}
                 </SelectContent>
               </Select>
@@ -270,7 +298,6 @@ export function PostFormDialog({
             </div>
           </div>
 
-          {/* Rating & Favorite row */}
           <div className="flex flex-wrap items-end gap-6">
             <div className="flex flex-col gap-2">
               <Label>Note</Label>
@@ -293,7 +320,6 @@ export function PostFormDialog({
             </div>
           </div>
 
-          {/* Excerpt (caption Instagram) */}
           <div className="flex flex-col gap-2">
             <Label htmlFor="excerpt">
               Extrait / Caption Instagram{" "}
@@ -313,7 +339,6 @@ export function PostFormDialog({
             )}
           </div>
 
-          {/* Full review */}
           <div className="flex flex-col gap-2">
             <Label htmlFor="review">
               Chronique complete{" "}
@@ -330,28 +355,26 @@ export function PostFormDialog({
             />
           </div>
 
-          {/* Cover image URL */}
           <div className="flex flex-col gap-2">
-            <Label htmlFor="coverImage">
-              URL de l{"'"}image de couverture{" "}
+            <Label htmlFor="coverImagesText">
+              URL des images (une URL par ligne ou separees par des virgules){" "}
               <span className="text-muted-foreground text-xs font-normal">
                 (optionnel)
               </span>
             </Label>
-            <Input
-              id="coverImage"
-              type="url"
-              placeholder="https://..."
-              {...register("coverImage")}
-              className="bg-background"
+            <Textarea
+              id="coverImagesText"
+              placeholder={"https://...\nhttps://..."}
+              rows={3}
+              {...register("coverImagesText")}
+              className="bg-background resize-none"
             />
             <p className="text-xs text-muted-foreground">
-              Collez l{"'"}URL d{"'"}une image de couverture du livre. Si vide,
-              un placeholder sera utilise.
+              Ajoutez une ou plusieurs images. Si vide, un placeholder sera
+              utilise.
             </p>
           </div>
 
-          {/* Instagram URL */}
           <div className="flex flex-col gap-2">
             <Label htmlFor="instagramUrl">
               Lien du post Instagram{" "}
@@ -368,7 +391,6 @@ export function PostFormDialog({
             />
           </div>
 
-          {/* Tags */}
           <div className="flex flex-col gap-2">
             <Label htmlFor="tags">
               Tags{" "}
@@ -384,7 +406,6 @@ export function PostFormDialog({
             />
           </div>
 
-          {/* Submit */}
           <div className="flex justify-end gap-3 pt-2">
             <Button
               type="button"

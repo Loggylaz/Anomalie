@@ -8,6 +8,7 @@ CREATE TABLE IF NOT EXISTS public.posts (
   excerpt TEXT NOT NULL,
   review TEXT DEFAULT '',
   cover_image TEXT DEFAULT '',
+  cover_images TEXT[] DEFAULT '{}',
   tags TEXT[] DEFAULT '{}',
   is_favorite BOOLEAN DEFAULT FALSE,
   instagram_url TEXT DEFAULT '',
