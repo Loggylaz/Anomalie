@@ -2,13 +2,28 @@
 
 import { useState, useEffect, useCallback } from "react"
 import { createClient } from "@/lib/supabase/client"
-import type { BookPost, Genre } from "@/lib/data"
+import {
+  getLegacyGenreLabel,
+  getLegacyOriginFromGenre,
+  type BookPost,
+  type Genre,
+  type GenreOption,
+  type OriginOption,
+} from "@/lib/data"
+
+type DbTaxonomy = {
+  id: string
+  name: string
+  slug: string
+}
 
 type DbPost = {
   id: string
   title: string
   author: string
   genre: string
+  origin_id: string | null
+  genre_id: string | null
   rating: number
   date: string
   excerpt: string
@@ -19,6 +34,8 @@ type DbPost = {
   is_favorite: boolean
   instagram_url: string | null
   created_at: string
+  origin?: DbTaxonomy | null
+  genre_ref?: DbTaxonomy | null
 }
 
 function normalizeCoverImages(row: DbPost) {
@@ -30,12 +47,30 @@ function normalizeCoverImages(row: DbPost) {
 
 function toBookPost(row: DbPost): BookPost {
   const coverImages = normalizeCoverImages(row)
+  const resolvedGenre = row.genre_ref?.name || getLegacyGenreLabel(row.genre)
+  const resolvedOrigin = row.origin?.name || getLegacyOriginFromGenre(row.genre)
 
   return {
     id: row.id,
     title: row.title,
     author: row.author,
-    genre: row.genre as Genre,
+    genre: (resolvedGenre || row.genre) as Genre,
+    originId: row.origin_id,
+    genreId: row.genre_id,
+    origin: row.origin
+      ? { id: row.origin.id, name: row.origin.name, slug: row.origin.slug }
+      : resolvedOrigin
+        ? { id: row.origin_id || "", name: resolvedOrigin, slug: "" }
+        : null,
+    genreMeta: row.genre_ref
+      ? {
+          id: row.genre_ref.id,
+          name: row.genre_ref.name,
+          slug: row.genre_ref.slug,
+        }
+      : resolvedGenre
+        ? { id: row.genre_id || "", name: resolvedGenre, slug: "" }
+        : null,
     rating: row.rating,
     date: row.date,
     excerpt: row.excerpt,
@@ -50,27 +85,72 @@ function toBookPost(row: DbPost): BookPost {
 
 export function usePosts() {
   const [posts, setPosts] = useState<BookPost[]>([])
+  const [origins, setOrigins] = useState<OriginOption[]>([])
+  const [genres, setGenres] = useState<GenreOption[]>([])
   const [isLoaded, setIsLoaded] = useState(false)
   const supabase = createClient()
 
+  const fetchTaxonomy = useCallback(async () => {
+    const [{ data: originsData, error: originsError }, { data: genresData, error: genresError }] =
+      await Promise.all([
+        supabase.from("origins").select("id, name, slug").order("name", { ascending: true }),
+        supabase.from("genres").select("id, name, slug").order("name", { ascending: true }),
+      ])
+
+    if (originsError) {
+      console.error("[v0] Error fetching origins:", originsError.message)
+    } else {
+      setOrigins((originsData as DbTaxonomy[]).map((row) => ({
+        id: row.id,
+        name: row.name,
+        slug: row.slug,
+      })))
+    }
+
+    if (genresError) {
+      console.error("[v0] Error fetching genres:", genresError.message)
+    } else {
+      setGenres((genresData as DbTaxonomy[]).map((row) => ({
+        id: row.id,
+        name: row.name,
+        slug: row.slug,
+      })))
+    }
+  }, [supabase])
+
   const fetchPosts = useCallback(async () => {
-    const { data, error } = await supabase
+    const joinedQuery = await supabase
       .from("posts")
-      .select("*")
+      .select(
+        "*, origin:origins(id, name, slug), genre_ref:genres(id, name, slug)"
+      )
       .order("date", { ascending: false })
 
+    let data = joinedQuery.data as DbPost[] | null
+    let error = joinedQuery.error
+
     if (error) {
-      console.error("[v0] Error fetching posts:", error.message)
+      const fallbackQuery = await supabase
+        .from("posts")
+        .select("*")
+        .order("date", { ascending: false })
+      data = fallbackQuery.data as DbPost[] | null
+      error = fallbackQuery.error
+    }
+
+    if (error || !data) {
+      console.error("[v0] Error fetching posts:", error?.message || "unknown")
       return
     }
 
-    setPosts((data as DbPost[]).map(toBookPost))
+    setPosts(data.map(toBookPost))
     setIsLoaded(true)
   }, [supabase])
 
   useEffect(() => {
+    fetchTaxonomy()
     fetchPosts()
-  }, [fetchPosts])
+  }, [fetchTaxonomy, fetchPosts])
 
   const addPost = useCallback(
     async (post: Omit<BookPost, "id">) => {
@@ -79,7 +159,9 @@ export function usePosts() {
         .insert({
           title: post.title,
           author: post.author,
-          genre: post.genre,
+          genre: post.genreMeta?.name || post.genre,
+          origin_id: post.originId,
+          genre_id: post.genreId,
           rating: post.rating,
           date: post.date,
           excerpt: post.excerpt,
@@ -95,7 +177,7 @@ export function usePosts() {
           is_favorite: post.isFavorite,
           instagram_url: post.instagramUrl || null,
         })
-        .select()
+        .select("*, origin:origins(id, name, slug), genre_ref:genres(id, name, slug)")
         .single()
 
       if (error) {
@@ -116,6 +198,10 @@ export function usePosts() {
       if (updates.title !== undefined) dbUpdates.title = updates.title
       if (updates.author !== undefined) dbUpdates.author = updates.author
       if (updates.genre !== undefined) dbUpdates.genre = updates.genre
+      if (updates.originId !== undefined) dbUpdates.origin_id = updates.originId
+      if (updates.genreId !== undefined) dbUpdates.genre_id = updates.genreId
+      if (updates.genreMeta !== undefined)
+        dbUpdates.genre = updates.genreMeta?.name || updates.genre || null
       if (updates.rating !== undefined) dbUpdates.rating = updates.rating
       if (updates.date !== undefined) dbUpdates.date = updates.date
       if (updates.excerpt !== undefined) dbUpdates.excerpt = updates.excerpt
@@ -153,13 +239,16 @@ export function usePosts() {
       setPosts((prev) =>
         prev.map((p) => {
           if (p.id !== id) return p
-          const next = { ...p, ...updates }
+          const next: BookPost = { ...p, ...updates }
           if (updates.coverImages) {
             next.coverImage = updates.coverImages[0] || p.coverImage
             next.coverImages = updates.coverImages
           } else if (updates.coverImage) {
             next.coverImage = updates.coverImage
             next.coverImages = [updates.coverImage]
+          }
+          if (updates.genreMeta?.name) {
+            next.genre = updates.genreMeta.name
           }
           return next
         })
@@ -182,5 +271,13 @@ export function usePosts() {
     [supabase]
   )
 
-  return { posts, isLoaded, addPost, updatePost, deletePost }
+  return {
+    posts,
+    origins,
+    genres,
+    isLoaded,
+    addPost,
+    updatePost,
+    deletePost,
+  }
 }

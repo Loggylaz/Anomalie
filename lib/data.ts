@@ -1,42 +1,26 @@
-export const genreGroups = {
-  "Litterature Belge": [
-    "Thriller",
-    "Cosy Mystery",
-    "Jeunesse",
-    "BD",
-    "Romance (Noel)",
-    "Feel Good",
-    "Young Adult",
-  ],
-  "Litterature Francaise": [
-    "Thriller",
-    "Cosy Mystery",
-    "Jeunesse",
-    "BD",
-    "Romance (Noel)",
-    "Feel Good",
-    "Young Adult",
-  ],
-  "Litterature Etrangere": [
-    "Thriller",
-    "Cosy Mystery",
-    "Jeunesse",
-    "BD",
-    "Romance (Noel)",
-    "Feel Good",
-    "Young Adult",
-  ],
-} as const
+export type Genre = string
 
-export type GenreGroup = keyof typeof genreGroups
-type GenreSubcategory = (typeof genreGroups)[GenreGroup][number]
-export type Genre = `${GenreGroup} - ${GenreSubcategory}`
+export type OriginOption = {
+  id: string
+  slug: string
+  name: string
+}
+
+export type GenreOption = {
+  id: string
+  slug: string
+  name: string
+}
 
 export type BookPost = {
   id: string
   title: string
   author: string
   genre: Genre
+  originId: string | null
+  genreId: string | null
+  origin: OriginOption | null
+  genreMeta: GenreOption | null
   rating: number
   date: string
   excerpt: string
@@ -48,7 +32,33 @@ export type BookPost = {
   instagramUrl?: string
 }
 
-export const genres: Genre[] = Object.entries(genreGroups).flatMap(
-  ([group, subcategories]) =>
-    subcategories.map((subcategory) => `${group} - ${subcategory}` as Genre)
-)
+export const fallbackOrigins: OriginOption[] = [
+  { id: "fallback-belge", slug: "belge", name: "Belge" },
+  { id: "fallback-francaise", slug: "francaise", name: "Francaise" },
+  { id: "fallback-etrangere", slug: "etrangere", name: "Etrangere" },
+]
+
+export const fallbackGenres: GenreOption[] = [
+  { id: "fallback-thriller", slug: "thriller", name: "Thriller" },
+  { id: "fallback-cosy-mystery", slug: "cosy-mystery", name: "Cosy Mystery" },
+  { id: "fallback-jeunesse", slug: "jeunesse", name: "Jeunesse" },
+  { id: "fallback-bd", slug: "bd", name: "BD" },
+  { id: "fallback-romance-noel", slug: "romance-noel", name: "Romance (Noel)" },
+  { id: "fallback-feel-good", slug: "feel-good", name: "Feel Good" },
+  { id: "fallback-young-adult", slug: "young-adult", name: "Young Adult" },
+]
+
+export function getLegacyOriginFromGenre(genre: string): string | null {
+  const [prefix] = genre.split(" - ")
+  if (!prefix || prefix === genre) return null
+  const normalized = prefix.toLowerCase()
+  if (normalized.includes("belge")) return "Belge"
+  if (normalized.includes("franc")) return "Francaise"
+  if (normalized.includes("etrang")) return "Etrangere"
+  return prefix
+}
+
+export function getLegacyGenreLabel(genre: string): string {
+  const parts = genre.split(" - ")
+  return parts.length > 1 ? parts.slice(1).join(" - ") : genre
+}

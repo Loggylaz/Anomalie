@@ -14,6 +14,7 @@ import {
 } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import { StarRating } from "@/components/star-rating"
+import { getLegacyOriginFromGenre } from "@/lib/data"
 import type { BookPost } from "@/lib/data"
 
 function formatDate(dateString: string) {
@@ -33,7 +34,8 @@ type BookCardProps = {
 export function BookCard({ post, onEdit, onDelete }: BookCardProps) {
   const [isExpanded, setIsExpanded] = useState(false)
   const [imageIndex, setImageIndex] = useState(0)
-  const [genreGroup, genreStyle = "Style"] = post.genre.split(" - ")
+  const originLabel = post.origin?.name || getLegacyOriginFromGenre(post.genre) || "Sans origine"
+  const genreLabel = post.genreMeta?.name || post.genre
   const images =
     post.coverImages && post.coverImages.length > 0
       ? post.coverImages
@@ -133,10 +135,10 @@ export function BookCard({ post, onEdit, onDelete }: BookCardProps) {
         <div className="absolute left-3 top-3">
           <div className="flex items-center gap-1.5 rounded-full bg-card/90 p-1 backdrop-blur-sm">
             <Badge className="border-0 bg-foreground/10 text-[10px] text-foreground shadow-none">
-              {genreGroup}
+              {originLabel}
             </Badge>
             <Badge className="border-0 bg-primary/90 text-[10px] text-primary-foreground shadow-none">
-              {genreStyle}
+              {genreLabel}
             </Badge>
           </div>
         </div>

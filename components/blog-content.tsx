@@ -2,7 +2,12 @@
 
 import { useState, useMemo } from "react"
 import { BookX, Plus } from "lucide-react"
-import { type Genre, type BookPost } from "@/lib/data"
+import {
+  fallbackGenres,
+  fallbackOrigins,
+  getLegacyOriginFromGenre,
+  type BookPost,
+} from "@/lib/data"
 import { usePosts } from "@/lib/use-posts"
 import { FilterBar } from "@/components/filter-bar"
 import { BookCard } from "@/components/book-card"
@@ -19,10 +24,13 @@ interface BlogContentProps {
 }
 
 export function BlogContent({ isAdmin }: BlogContentProps) {
-  const { posts, addPost, updatePost, deletePost } = usePosts()
+  const { posts, origins, genres, addPost, updatePost, deletePost } = usePosts()
+  const originOptions = origins.length > 0 ? origins : fallbackOrigins
+  const genreOptions = genres.length > 0 ? genres : fallbackGenres
 
   const [search, setSearch] = useState("")
-  const [selectedGenres, setSelectedGenres] = useState<Genre[]>([])
+  const [selectedOriginIds, setSelectedOriginIds] = useState<string[]>([])
+  const [selectedGenreIds, setSelectedGenreIds] = useState<string[]>([])
   const [sortBy, setSortBy] = useState<SortOption>("date-desc")
   const [favoritesOnly, setFavoritesOnly] = useState(false)
 
@@ -36,6 +44,12 @@ export function BlogContent({ isAdmin }: BlogContentProps) {
 
   const filteredPosts = useMemo(() => {
     let result = [...posts]
+    const selectedOriginNames = originOptions
+      .filter((origin) => selectedOriginIds.includes(origin.id))
+      .map((origin) => origin.name)
+    const selectedGenreNames = genreOptions
+      .filter((genre) => selectedGenreIds.includes(genre.id))
+      .map((genre) => genre.name)
 
     if (search.trim()) {
       const q = search.toLowerCase()
@@ -48,8 +62,20 @@ export function BlogContent({ isAdmin }: BlogContentProps) {
       )
     }
 
-    if (selectedGenres.length > 0) {
-      result = result.filter((post) => selectedGenres.includes(post.genre))
+    if (selectedOriginIds.length > 0) {
+      result = result.filter((post) => {
+        if (post.originId) return selectedOriginIds.includes(post.originId)
+        const fallbackOrigin = post.origin?.name || getLegacyOriginFromGenre(post.genre)
+        return fallbackOrigin ? selectedOriginNames.includes(fallbackOrigin) : false
+      })
+    }
+
+    if (selectedGenreIds.length > 0) {
+      result = result.filter((post) => {
+        if (post.genreId) return selectedGenreIds.includes(post.genreId)
+        const fallbackGenre = post.genreMeta?.name || post.genre
+        return selectedGenreNames.includes(fallbackGenre)
+      })
     }
 
     if (favoritesOnly) {
@@ -72,17 +98,37 @@ export function BlogContent({ isAdmin }: BlogContentProps) {
     })
 
     return result
-  }, [posts, search, selectedGenres, sortBy, favoritesOnly])
+  }, [
+    favoritesOnly,
+    genreOptions,
+    originOptions,
+    posts,
+    search,
+    selectedGenreIds,
+    selectedOriginIds,
+    sortBy,
+  ])
 
-  function handleGenreToggle(genre: Genre) {
-    setSelectedGenres((prev) =>
-      prev.includes(genre) ? prev.filter((g) => g !== genre) : [...prev, genre]
+  function handleOriginToggle(originId: string) {
+    setSelectedOriginIds((prev) =>
+      prev.includes(originId)
+        ? prev.filter((id) => id !== originId)
+        : [...prev, originId]
+    )
+  }
+
+  function handleGenreToggle(genreId: string) {
+    setSelectedGenreIds((prev) =>
+      prev.includes(genreId)
+        ? prev.filter((id) => id !== genreId)
+        : [...prev, genreId]
     )
   }
 
   function handleClearFilters() {
     setSearch("")
-    setSelectedGenres([])
+    setSelectedOriginIds([])
+    setSelectedGenreIds([])
     setFavoritesOnly(false)
     setSortBy("date-desc")
   }
@@ -151,7 +197,11 @@ export function BlogContent({ isAdmin }: BlogContentProps) {
         <FilterBar
           search={search}
           onSearchChange={setSearch}
-          selectedGenres={selectedGenres}
+          origins={originOptions}
+          genres={genreOptions}
+          selectedOriginIds={selectedOriginIds}
+          onOriginToggle={handleOriginToggle}
+          selectedGenreIds={selectedGenreIds}
           onGenreToggle={handleGenreToggle}
           sortBy={sortBy}
           onSortChange={setSortBy}
@@ -201,6 +251,8 @@ export function BlogContent({ isAdmin }: BlogContentProps) {
             onOpenChange={setFormOpen}
             onSubmit={handleFormSubmit}
             editingPost={editingPost}
+            origins={originOptions}
+            genres={genreOptions}
           />
 
           <DeleteConfirmDialog

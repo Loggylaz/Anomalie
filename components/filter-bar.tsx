@@ -3,16 +3,19 @@
 import { Search, SlidersHorizontal, Star, X } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { genreGroups, type Genre, type GenreGroup } from "@/lib/data"
+import type { GenreOption, OriginOption } from "@/lib/data"
 
 type SortOption = "date-desc" | "date-asc" | "rating-desc" | "rating-asc"
-const groupNames = Object.keys(genreGroups) as GenreGroup[]
 
 type FilterBarProps = {
   search: string
   onSearchChange: (value: string) => void
-  selectedGenres: Genre[]
-  onGenreToggle: (genre: Genre) => void
+  origins: OriginOption[]
+  genres: GenreOption[]
+  selectedOriginIds: string[]
+  onOriginToggle: (originId: string) => void
+  selectedGenreIds: string[]
+  onGenreToggle: (genreId: string) => void
   sortBy: SortOption
   onSortChange: (sort: SortOption) => void
   favoritesOnly: boolean
@@ -24,7 +27,11 @@ type FilterBarProps = {
 export function FilterBar({
   search,
   onSearchChange,
-  selectedGenres,
+  origins,
+  genres,
+  selectedOriginIds,
+  onOriginToggle,
+  selectedGenreIds,
   onGenreToggle,
   sortBy,
   onSortChange,
@@ -34,11 +41,13 @@ export function FilterBar({
   onClearFilters,
 }: FilterBarProps) {
   const hasActiveFilters =
-    search.length > 0 || selectedGenres.length > 0 || favoritesOnly
+    search.length > 0 ||
+    selectedOriginIds.length > 0 ||
+    selectedGenreIds.length > 0 ||
+    favoritesOnly
 
   return (
     <div className="flex flex-col gap-5">
-      {/* Search and controls row */}
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
         <div className="relative flex-1">
           <Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
@@ -72,7 +81,7 @@ export function FilterBar({
               className="bg-transparent text-sm text-foreground outline-none cursor-pointer"
               aria-label="Trier par"
             >
-              <option value="date-desc">Plus r&eacute;cents</option>
+              <option value="date-desc">Plus recents</option>
               <option value="date-asc">Plus anciens</option>
               <option value="rating-desc">Meilleures notes</option>
               <option value="rating-asc">Notes croissantes</option>
@@ -81,42 +90,58 @@ export function FilterBar({
         </div>
       </div>
 
-      {/* Genre filter chips by literature group */}
+      <div className="flex flex-col gap-3">
+        <span className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
+          Origines litteraires
+        </span>
+        <div className="flex flex-wrap gap-2">
+          {origins.map((origin) => {
+            const isSelected = selectedOriginIds.includes(origin.id)
+            return (
+              <button
+                key={origin.id}
+                onClick={() => onOriginToggle(origin.id)}
+                className={`inline-flex items-center rounded-full border px-3 py-1 text-xs font-medium transition-colors cursor-pointer ${
+                  isSelected
+                    ? "border-primary bg-primary text-primary-foreground"
+                    : "border-border bg-card text-foreground hover:border-primary/50 hover:bg-primary/5"
+                }`}
+              >
+                {origin.name}
+              </button>
+            )
+          })}
+        </div>
+      </div>
+
       <div className="flex flex-col gap-3">
         <span className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
           Genres
         </span>
-        {groupNames.map((group) => (
-          <div key={group} className="flex flex-wrap items-center gap-2">
-            <span className="rounded-md bg-muted px-2 py-1 text-[11px] font-medium text-foreground/80">
-              {group}
-            </span>
-            {genreGroups[group].map((subcategory) => {
-              const genre = `${group} - ${subcategory}` as Genre
-              const isSelected = selectedGenres.includes(genre)
-              return (
-                <button
-                  key={genre}
-                  onClick={() => onGenreToggle(genre)}
-                  className={`inline-flex items-center rounded-full border px-3 py-1 text-xs font-medium transition-colors cursor-pointer ${
-                    isSelected
-                      ? "border-primary bg-primary text-primary-foreground"
-                      : "border-border bg-card text-foreground hover:border-primary/50 hover:bg-primary/5"
-                  }`}
-                >
-                  {subcategory}
-                </button>
-              )
-            })}
-          </div>
-        ))}
+        <div className="flex flex-wrap gap-2">
+          {genres.map((genre) => {
+            const isSelected = selectedGenreIds.includes(genre.id)
+            return (
+              <button
+                key={genre.id}
+                onClick={() => onGenreToggle(genre.id)}
+                className={`inline-flex items-center rounded-full border px-3 py-1 text-xs font-medium transition-colors cursor-pointer ${
+                  isSelected
+                    ? "border-primary bg-primary text-primary-foreground"
+                    : "border-border bg-card text-foreground hover:border-primary/50 hover:bg-primary/5"
+                }`}
+              >
+                {genre.name}
+              </button>
+            )
+          })}
+        </div>
       </div>
 
-      {/* Active filters and count */}
       <div className="flex items-center justify-between">
         <p className="text-sm text-muted-foreground">
           {resultCount} chronique{resultCount !== 1 ? "s" : ""}
-          {hasActiveFilters ? " trouv\u00e9e" : ""}
+          {hasActiveFilters ? " trouvee" : ""}
           {hasActiveFilters && resultCount !== 1 ? "s" : ""}
         </p>
         {hasActiveFilters && (

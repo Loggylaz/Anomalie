@@ -1,10 +1,10 @@
 "use client"
 
-import { useEffect, useMemo } from "react"
+import { useEffect, useMemo, useState } from "react"
 import { useForm } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { z } from "zod"
-import { Star } from "lucide-react"
+import { ArrowDown, ArrowUp, Star, Trash2, Upload } from "lucide-react"
 import {
   Dialog,
   DialogContent,
@@ -27,17 +27,20 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import {
-  genreGroups,
+  fallbackGenres,
+  fallbackOrigins,
+  getLegacyGenreLabel,
   type BookPost,
-  type Genre,
-  type GenreGroup,
+  type GenreOption,
+  type OriginOption,
 } from "@/lib/data"
+import { createClient } from "@/lib/supabase/client"
 
 const postSchema = z.object({
   title: z.string().min(1, "Le titre est requis"),
   author: z.string().min(1, "L'auteur est requis"),
-  literatureGroup: z.string().min(1, "Le style de litterature est requis"),
-  genreStyle: z.string().min(1, "Le style est requis"),
+  originId: z.string().min(1, "Le style de litterature est requis"),
+  genreId: z.string().min(1, "Le style est requis"),
   rating: z.number().min(1).max(5),
   date: z.string().min(1, "La date est requise"),
   excerpt: z.string().min(1, "L'extrait est requis"),
@@ -55,6 +58,8 @@ type PostFormDialogProps = {
   onOpenChange: (open: boolean) => void
   onSubmit: (data: Omit<BookPost, "id">) => void | Promise<void>
   editingPost?: BookPost | null
+  origins: OriginOption[]
+  genres: GenreOption[]
 }
 
 function RatingInput({
@@ -87,27 +92,12 @@ function RatingInput({
   )
 }
 
-const groupNames = Object.keys(genreGroups) as GenreGroup[]
-const genreSeparator = " - "
-
 function parseCoverImages(input: string | undefined) {
   if (!input) return []
-
   return input
     .split(/[,\n]/)
     .map((url) => url.trim())
     .filter(Boolean)
-}
-
-function splitGenre(value: string | undefined) {
-  if (!value) return { group: "", style: "" }
-  const separatorIndex = value.indexOf(genreSeparator)
-  if (separatorIndex === -1) return { group: "", style: "" }
-
-  return {
-    group: value.slice(0, separatorIndex),
-    style: value.slice(separatorIndex + genreSeparator.length),
-  }
 }
 
 export function PostFormDialog({
@@ -115,8 +105,16 @@ export function PostFormDialog({
   onOpenChange,
   onSubmit,
   editingPost,
+  origins,
+  genres,
 }: PostFormDialogProps) {
   const isEditing = !!editingPost
+  const supabase = useMemo(() => createClient(), [])
+  const originOptions = origins.length > 0 ? origins : fallbackOrigins
+  const genreOptions = genres.length > 0 ? genres : fallbackGenres
+  const [selectedFiles, setSelectedFiles] = useState<Array<{ id: string; file: File }>>([])
+  const [uploadError, setUploadError] = useState<string | null>(null)
+  const [isUploadingFiles, setIsUploadingFiles] = useState(false)
 
   const {
     register,
@@ -130,8 +128,8 @@ export function PostFormDialog({
     defaultValues: {
       title: "",
       author: "",
-      literatureGroup: "",
-      genreStyle: "",
+      originId: "",
+      genreId: "",
       rating: 4,
       date: new Date().toISOString().split("T")[0],
       excerpt: "",
@@ -145,63 +143,147 @@ export function PostFormDialog({
 
   const ratingValue = watch("rating")
   const isFavoriteValue = watch("isFavorite")
-  const selectedLiteratureGroup = watch("literatureGroup")
-  const selectedGenreStyle = watch("genreStyle")
-  const availableStyles = useMemo<string[]>(() => {
-    if (!selectedLiteratureGroup) return []
-    return [...(genreGroups[selectedLiteratureGroup as GenreGroup] || [])]
-  }, [selectedLiteratureGroup])
+  const originIdValue = watch("originId")
+  const genreIdValue = watch("genreId")
 
   useEffect(() => {
-    if (open) {
-      if (editingPost) {
-        const { group, style } = splitGenre(editingPost.genre)
-        reset({
-          title: editingPost.title,
-          author: editingPost.author,
-          literatureGroup: group,
-          genreStyle: style,
-          rating: editingPost.rating,
-          date: editingPost.date,
-          excerpt: editingPost.excerpt,
-          review: editingPost.review || "",
-          coverImagesText: (editingPost.coverImages || [editingPost.coverImage])
-            .filter((image) => image && !image.startsWith("/placeholder"))
-            .join("\n"),
-          instagramUrl: editingPost.instagramUrl || "",
-          tags: editingPost.tags.join(", "),
-          isFavorite: editingPost.isFavorite,
-        })
-      } else {
-        reset({
-          title: "",
-          author: "",
-          literatureGroup: "",
-          genreStyle: "",
-          rating: 4,
-          date: new Date().toISOString().split("T")[0],
-          excerpt: "",
-          review: "",
-          coverImagesText: "",
-          instagramUrl: "",
-          tags: "",
-          isFavorite: false,
-        })
-      }
+    if (!open) return
+
+    setSelectedFiles([])
+    setUploadError(null)
+
+    if (editingPost) {
+      const matchedOrigin =
+        originOptions.find((origin) => origin.id === editingPost.originId) ||
+        originOptions.find((origin) => origin.name === editingPost.origin?.name)
+      const matchedGenre =
+        genreOptions.find((genre) => genre.id === editingPost.genreId) ||
+        genreOptions.find((genre) => genre.name === editingPost.genreMeta?.name) ||
+        genreOptions.find((genre) => genre.name === getLegacyGenreLabel(editingPost.genre))
+
+      reset({
+        title: editingPost.title,
+        author: editingPost.author,
+        originId: matchedOrigin?.id || "",
+        genreId: matchedGenre?.id || "",
+        rating: editingPost.rating,
+        date: editingPost.date,
+        excerpt: editingPost.excerpt,
+        review: editingPost.review || "",
+        coverImagesText: (editingPost.coverImages || [editingPost.coverImage])
+          .filter((image) => image && !image.startsWith("/placeholder"))
+          .join("\n"),
+        instagramUrl: editingPost.instagramUrl || "",
+        tags: editingPost.tags.join(", "),
+        isFavorite: editingPost.isFavorite,
+      })
+    } else {
+      reset({
+        title: "",
+        author: "",
+        originId: "",
+        genreId: "",
+        rating: 4,
+        date: new Date().toISOString().split("T")[0],
+        excerpt: "",
+        review: "",
+        coverImagesText: "",
+        instagramUrl: "",
+        tags: "",
+        isFavorite: false,
+      })
     }
-  }, [open, editingPost, reset])
+  }, [open, editingPost, originOptions, genreOptions, reset])
+
+  function moveFile(index: number, direction: -1 | 1) {
+    setSelectedFiles((prev) => {
+      const targetIndex = index + direction
+      if (targetIndex < 0 || targetIndex >= prev.length) return prev
+      const next = [...prev]
+      const temp = next[index]
+      next[index] = next[targetIndex]
+      next[targetIndex] = temp
+      return next
+    })
+  }
+
+  async function uploadFilesInOrder(files: Array<{ id: string; file: File }>) {
+    const urls: string[] = []
+
+    for (const item of files) {
+      const file = item.file
+      const extension = file.name.split(".").pop()?.toLowerCase() || "jpg"
+      const baseName = file.name
+        .replace(/\.[^/.]+$/, "")
+        .toLowerCase()
+        .replace(/[^a-z0-9-_]/g, "-")
+      const fileName = `${Date.now()}-${crypto.randomUUID()}-${baseName}.${extension}`
+      const filePath = `posts/${fileName}`
+
+      const { error: uploadError } = await supabase.storage
+        .from("post-images")
+        .upload(filePath, file, { upsert: false })
+
+      if (uploadError) {
+        throw new Error(uploadError.message)
+      }
+
+      const { data } = supabase.storage.from("post-images").getPublicUrl(filePath)
+      urls.push(data.publicUrl)
+    }
+
+    return urls
+  }
 
   async function onFormSubmit(data: PostFormData) {
-    const coverImages = parseCoverImages(data.coverImagesText)
+    const urlImages = parseCoverImages(data.coverImagesText)
+    let uploadedImages: string[] = []
+
+    setUploadError(null)
+    if (selectedFiles.length > 0) {
+      try {
+        setIsUploadingFiles(true)
+        uploadedImages = await uploadFilesInOrder(selectedFiles)
+      } catch (error) {
+        setUploadError(
+          error instanceof Error
+            ? error.message
+            : "Upload impossible. Verifiez le bucket Supabase `post-images`."
+        )
+        setIsUploadingFiles(false)
+        return
+      } finally {
+        setIsUploadingFiles(false)
+      }
+    }
+
+    const combinedImages = [...urlImages, ...uploadedImages]
     const normalizedCoverImages =
-      coverImages.length > 0
-        ? coverImages
+      combinedImages.length > 0
+        ? combinedImages
         : [`/placeholder.svg?height=600&width=400`]
+
+    const selectedOrigin =
+      originOptions.find((origin) => origin.id === data.originId) || null
+    const selectedGenre =
+      genreOptions.find((genre) => genre.id === data.genreId) || null
+    const resolvedOriginId =
+      selectedOrigin && !selectedOrigin.id.startsWith("fallback-")
+        ? selectedOrigin.id
+        : null
+    const resolvedGenreId =
+      selectedGenre && !selectedGenre.id.startsWith("fallback-")
+        ? selectedGenre.id
+        : null
 
     const bookPost: Omit<BookPost, "id"> = {
       title: data.title.trim(),
       author: data.author.trim(),
-      genre: `${data.literatureGroup}${genreSeparator}${data.genreStyle}` as Genre,
+      genre: selectedGenre?.name || "",
+      originId: resolvedOriginId,
+      genreId: resolvedGenreId,
+      origin: resolvedOriginId ? selectedOrigin : null,
+      genreMeta: resolvedGenreId ? selectedGenre : null,
       rating: data.rating,
       date: data.date,
       excerpt: data.excerpt.trim(),
@@ -217,23 +299,14 @@ export function PostFormDialog({
       isFavorite: data.isFavorite,
       instagramUrl: data.instagramUrl?.trim() || undefined,
     }
+
     await onSubmit(bookPost)
     onOpenChange(false)
   }
 
-  useEffect(() => {
-    if (
-      selectedLiteratureGroup &&
-      selectedGenreStyle &&
-      !availableStyles.includes(selectedGenreStyle)
-    ) {
-      setValue("genreStyle", "", { shouldValidate: true })
-    }
-  }, [availableStyles, selectedGenreStyle, selectedLiteratureGroup, setValue])
-
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-xl">
+      <DialogContent className="max-h-[90vh] overflow-y-auto overflow-x-hidden sm:max-w-xl">
         <DialogHeader>
           <DialogTitle className="font-serif text-xl">
             {isEditing ? "Modifier la chronique" : "Ajouter une chronique"}
@@ -247,9 +320,8 @@ export function PostFormDialog({
 
         <form
           onSubmit={handleSubmit(onFormSubmit)}
-          className="flex flex-col gap-5 pt-2"
+          className="flex min-w-0 flex-col gap-5 pt-2"
         >
-          {/* Title & Author row */}
           <div className="grid gap-4 sm:grid-cols-2">
             <div className="flex flex-col gap-2">
               <Label htmlFor="title">
@@ -262,9 +334,7 @@ export function PostFormDialog({
                 className="bg-background"
               />
               {errors.title && (
-                <p className="text-xs text-destructive">
-                  {errors.title.message}
-                </p>
+                <p className="text-xs text-destructive">{errors.title.message}</p>
               )}
             </div>
             <div className="flex flex-col gap-2">
@@ -278,44 +348,38 @@ export function PostFormDialog({
                 className="bg-background"
               />
               {errors.author && (
-                <p className="text-xs text-destructive">
-                  {errors.author.message}
-                </p>
+                <p className="text-xs text-destructive">{errors.author.message}</p>
               )}
             </div>
           </div>
 
-          {/* Genre & Date row */}
           <div className="grid gap-4 sm:grid-cols-2">
             <div className="flex flex-col gap-2">
               <Label>
                 Style de litterature <span className="text-destructive">*</span>
               </Label>
               <Select
-                value={selectedLiteratureGroup}
-                onValueChange={(v) => {
-                  setValue("literatureGroup", v, { shouldValidate: true })
-                  setValue("genreStyle", "", { shouldValidate: true })
-                }}
+                value={originIdValue}
+                onValueChange={(value) =>
+                  setValue("originId", value, { shouldValidate: true })
+                }
               >
                 <SelectTrigger className="bg-background">
-                  <SelectValue placeholder="Choisir une litterature" />
+                  <SelectValue placeholder="Choisir une origine" />
                 </SelectTrigger>
                 <SelectContent>
                   <SelectGroup>
-                    <SelectLabel>Litteratures</SelectLabel>
-                    {groupNames.map((group) => (
-                      <SelectItem key={group} value={group}>
-                        {group}
+                    <SelectLabel>Origines</SelectLabel>
+                    {originOptions.map((origin) => (
+                      <SelectItem key={origin.id} value={origin.id}>
+                        {origin.name}
                       </SelectItem>
                     ))}
                   </SelectGroup>
                 </SelectContent>
               </Select>
-              {errors.literatureGroup && (
-                <p className="text-xs text-destructive">
-                  {errors.literatureGroup.message}
-                </p>
+              {errors.originId && (
+                <p className="text-xs text-destructive">{errors.originId.message}</p>
               )}
             </div>
             <div className="flex flex-col gap-2">
@@ -323,50 +387,50 @@ export function PostFormDialog({
                 Style <span className="text-destructive">*</span>
               </Label>
               <Select
-                value={selectedGenreStyle}
-                onValueChange={(v) => setValue("genreStyle", v, { shouldValidate: true })}
-                disabled={!selectedLiteratureGroup}
+                value={genreIdValue}
+                onValueChange={(value) =>
+                  setValue("genreId", value, { shouldValidate: true })
+                }
+                disabled={!originIdValue}
               >
                 <SelectTrigger className="bg-background">
                   <SelectValue
                     placeholder={
-                      selectedLiteratureGroup
+                      originIdValue
                         ? "Choisir un style"
-                        : "Selectionnez d'abord une litterature"
+                        : "Selectionnez d'abord une origine"
                     }
                   />
                 </SelectTrigger>
                 <SelectContent>
                   <SelectGroup>
-                    <SelectLabel>Styles disponibles</SelectLabel>
-                    {availableStyles.map((style) => (
-                      <SelectItem key={style} value={style}>
-                        {style}
+                    <SelectLabel>Genres</SelectLabel>
+                    {genreOptions.map((genre) => (
+                      <SelectItem key={genre.id} value={genre.id}>
+                        {genre.name}
                       </SelectItem>
                     ))}
                   </SelectGroup>
                 </SelectContent>
               </Select>
-              {errors.genreStyle && (
-                <p className="text-xs text-destructive">
-                  {errors.genreStyle.message}
-                </p>
+              {errors.genreId && (
+                <p className="text-xs text-destructive">{errors.genreId.message}</p>
               )}
-            </div>
-            <div className="flex flex-col gap-2 sm:col-span-2">
-              <Label htmlFor="date">
-                Date <span className="text-destructive">*</span>
-              </Label>
-              <Input
-                id="date"
-                type="date"
-                {...register("date")}
-                className="bg-background"
-              />
             </div>
           </div>
 
-          {/* Rating & Favorite row */}
+          <div className="flex flex-col gap-2">
+            <Label htmlFor="date">
+              Date <span className="text-destructive">*</span>
+            </Label>
+            <Input
+              id="date"
+              type="date"
+              {...register("date")}
+              className="bg-background"
+            />
+          </div>
+
           <div className="flex flex-wrap items-end gap-6">
             <div className="flex flex-col gap-2">
               <Label>Note</Label>
@@ -389,27 +453,22 @@ export function PostFormDialog({
             </div>
           </div>
 
-          {/* Excerpt (caption Instagram) */}
           <div className="flex flex-col gap-2">
             <Label htmlFor="excerpt">
-              Extrait / Caption Instagram{" "}
-              <span className="text-destructive">*</span>
+              Extrait / Caption Instagram <span className="text-destructive">*</span>
             </Label>
             <Textarea
               id="excerpt"
               placeholder="Collez ici le texte de votre post Instagram..."
               rows={3}
               {...register("excerpt")}
-              className="bg-background resize-none"
+              className="bg-background resize-none break-words whitespace-pre-wrap"
             />
             {errors.excerpt && (
-              <p className="text-xs text-destructive">
-                {errors.excerpt.message}
-              </p>
+              <p className="text-xs text-destructive">{errors.excerpt.message}</p>
             )}
           </div>
 
-          {/* Full review */}
           <div className="flex flex-col gap-2">
             <Label htmlFor="review">
               Chronique complete{" "}
@@ -422,11 +481,10 @@ export function PostFormDialog({
               placeholder="Une critique plus detaillee si vous le souhaitez..."
               rows={4}
               {...register("review")}
-              className="bg-background resize-none"
+              className="bg-background resize-none break-words whitespace-pre-wrap"
             />
           </div>
 
-          {/* Cover images URLs */}
           <div className="flex flex-col gap-2">
             <Label htmlFor="coverImagesText">
               URLs des images{" "}
@@ -439,15 +497,100 @@ export function PostFormDialog({
               rows={3}
               placeholder={"https://...\nhttps://..."}
               {...register("coverImagesText")}
-              className="bg-background resize-none"
+              className="bg-background resize-none break-all"
             />
             <p className="text-xs text-muted-foreground">
-              Une URL par ligne (ou separees par des virgules). S{"'"}il y en a
-              plusieurs, un carrousel sera affiche sur la carte.
+              Une URL par ligne (ou separees par des virgules). S'il y en a
+              plusieurs, l'ordre des lignes est conserve.
             </p>
           </div>
 
-          {/* Instagram URL */}
+          <div className="flex flex-col gap-2">
+            <Label htmlFor="coverImagesUpload">
+              Upload d'images{" "}
+              <span className="text-muted-foreground text-xs font-normal">
+                (optionnel)
+              </span>
+            </Label>
+            <Input
+              id="coverImagesUpload"
+              type="file"
+              accept="image/*"
+              multiple
+              onChange={(event) => {
+                const files = Array.from(event.target.files || [])
+                setSelectedFiles(
+                  files.map((file) => ({
+                    id: `${file.name}-${file.size}-${crypto.randomUUID()}`,
+                    file,
+                  }))
+                )
+                setUploadError(null)
+              }}
+              className="bg-background"
+            />
+            {selectedFiles.length > 0 && (
+              <div className="rounded-md border border-border/70 bg-muted/30 p-2">
+                <p className="mb-2 text-xs text-muted-foreground">
+                  Reordonne les images: cet ordre sera respecte dans le carrousel.
+                </p>
+                <div className="flex flex-col gap-1.5">
+                  {selectedFiles.map((item, index) => (
+                    <div
+                      key={item.id}
+                      className="flex min-w-0 items-center justify-between rounded-md border border-border bg-background px-2 py-1.5"
+                    >
+                      <span className="min-w-0 break-all pr-2 text-xs text-foreground">
+                        {index + 1}. {item.file.name}
+                      </span>
+                      <div className="flex items-center gap-1">
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="icon"
+                          className="size-7"
+                          onClick={() => moveFile(index, -1)}
+                          disabled={index === 0}
+                        >
+                          <ArrowUp className="size-3.5" />
+                        </Button>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="icon"
+                          className="size-7"
+                          onClick={() => moveFile(index, 1)}
+                          disabled={index === selectedFiles.length - 1}
+                        >
+                          <ArrowDown className="size-3.5" />
+                        </Button>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="icon"
+                          className="size-7 text-destructive"
+                          onClick={() =>
+                            setSelectedFiles((prev) =>
+                              prev.filter((candidate) => candidate.id !== item.id)
+                            )
+                          }
+                        >
+                          <Trash2 className="size-3.5" />
+                        </Button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+            <p className="text-xs text-muted-foreground">
+              Les fichiers sont envoyes vers le bucket Supabase `post-images`.
+            </p>
+            {uploadError && (
+              <p className="text-xs text-destructive">{uploadError}</p>
+            )}
+          </div>
+
           <div className="flex flex-col gap-2">
             <Label htmlFor="instagramUrl">
               Lien du post Instagram{" "}
@@ -464,7 +607,6 @@ export function PostFormDialog({
             />
           </div>
 
-          {/* Tags */}
           <div className="flex flex-col gap-2">
             <Label htmlFor="tags">
               Tags{" "}
@@ -480,7 +622,6 @@ export function PostFormDialog({
             />
           </div>
 
-          {/* Submit */}
           <div className="flex justify-end gap-3 pt-2">
             <Button
               type="button"
@@ -489,7 +630,8 @@ export function PostFormDialog({
             >
               Annuler
             </Button>
-            <Button type="submit">
+            <Button type="submit" disabled={isUploadingFiles}>
+              {isUploadingFiles && <Upload className="size-4 animate-pulse" />}
               {isEditing ? "Enregistrer" : "Ajouter la chronique"}
             </Button>
           </div>
