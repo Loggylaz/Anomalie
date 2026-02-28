@@ -5,6 +5,8 @@ import {
   Heart,
   Calendar,
   ChevronDown,
+  ChevronLeft,
+  ChevronRight,
   ChevronUp,
   Pencil,
   Trash2,
@@ -30,12 +32,21 @@ type BookCardProps = {
 
 export function BookCard({ post, onEdit, onDelete }: BookCardProps) {
   const [isExpanded, setIsExpanded] = useState(false)
+  const [imageIndex, setImageIndex] = useState(0)
+  const images = post.coverImages.length > 0 ? post.coverImages : [post.coverImage]
+
+  function goToPreviousImage() {
+    setImageIndex((prev) => (prev === 0 ? images.length - 1 : prev - 1))
+  }
+
+  function goToNextImage() {
+    setImageIndex((prev) => (prev === images.length - 1 ? 0 : prev + 1))
+  }
 
   return (
-    <article className="group relative flex flex-col overflow-hidden rounded-lg border border-border bg-card transition-all hover:shadow-md hover:border-primary/20">
-      {/* Action buttons on hover */}
+    <article className="group relative flex h-full flex-col overflow-hidden rounded-lg border border-border bg-card transition-all hover:shadow-md hover:border-primary/20">
       {(onEdit || onDelete) && (
-        <div className="absolute right-3 top-3 z-10 flex items-center gap-1.5 opacity-0 transition-opacity group-hover:opacity-100">
+        <div className="absolute right-3 top-3 z-20 flex items-center gap-1.5 opacity-0 transition-opacity group-hover:opacity-100">
           {post.instagramUrl && (
             <a
               href={post.instagramUrl}
@@ -68,21 +79,44 @@ export function BookCard({ post, onEdit, onDelete }: BookCardProps) {
         </div>
       )}
 
-      {/* Cover image area */}
-      <div className="relative aspect-[3/2] overflow-hidden bg-muted">
+      <div className="relative flex items-center justify-center overflow-hidden bg-muted">
         <img
-          src={post.coverImage}
+          src={images[imageIndex]}
           alt={`Couverture de ${post.title} par ${post.author}`}
-          className="size-full object-cover transition-transform duration-500 group-hover:scale-105"
+          className="h-auto max-h-[440px] w-full object-contain transition-transform duration-500 group-hover:scale-[1.02]"
           crossOrigin="anonymous"
         />
-        {/* Genre badge overlay */}
+
+        {images.length > 1 && (
+          <>
+            <button
+              type="button"
+              onClick={goToPreviousImage}
+              className="absolute left-3 top-1/2 z-10 -translate-y-1/2 rounded-full bg-card/90 p-1.5 backdrop-blur-sm hover:bg-card"
+              aria-label="Image precedente"
+            >
+              <ChevronLeft className="size-4" />
+            </button>
+            <button
+              type="button"
+              onClick={goToNextImage}
+              className="absolute right-3 top-1/2 z-10 -translate-y-1/2 rounded-full bg-card/90 p-1.5 backdrop-blur-sm hover:bg-card"
+              aria-label="Image suivante"
+            >
+              <ChevronRight className="size-4" />
+            </button>
+            <div className="absolute bottom-3 right-3 rounded-full bg-card/90 px-2 py-0.5 text-xs text-foreground backdrop-blur-sm">
+              {imageIndex + 1}/{images.length}
+            </div>
+          </>
+        )}
+
         <div className="absolute left-3 top-3">
           <Badge className="bg-card/90 text-card-foreground backdrop-blur-sm border-0 text-xs">
             {post.genre}
           </Badge>
         </div>
-        {/* Favorite indicator */}
+
         {post.isFavorite && (
           <div className="absolute left-3 bottom-3">
             <div className="flex size-8 items-center justify-center rounded-full bg-card/90 backdrop-blur-sm">
@@ -92,9 +126,7 @@ export function BookCard({ post, onEdit, onDelete }: BookCardProps) {
         )}
       </div>
 
-      {/* Content */}
       <div className="flex flex-1 flex-col gap-3 p-5">
-        {/* Header */}
         <div className="flex flex-col gap-1.5">
           <div className="flex items-center justify-between gap-2">
             <StarRating rating={post.rating} />
@@ -109,12 +141,8 @@ export function BookCard({ post, onEdit, onDelete }: BookCardProps) {
           <p className="text-sm text-muted-foreground">{post.author}</p>
         </div>
 
-        {/* Excerpt */}
-        <p className="text-sm leading-relaxed text-foreground/80">
-          {post.excerpt}
-        </p>
+        <p className="text-sm leading-relaxed text-foreground/80">{post.excerpt}</p>
 
-        {/* Expandable review */}
         {isExpanded && post.review && (
           <div className="rounded-md border border-border/60 bg-muted/30 p-4">
             <p className="text-sm leading-relaxed text-foreground/75">
@@ -123,7 +151,6 @@ export function BookCard({ post, onEdit, onDelete }: BookCardProps) {
           </div>
         )}
 
-        {/* Tags + Instagram link */}
         <div className="flex flex-wrap items-center gap-1.5 pt-1">
           {post.tags.map((tag) => (
             <span
@@ -146,7 +173,6 @@ export function BookCard({ post, onEdit, onDelete }: BookCardProps) {
           )}
         </div>
 
-        {/* Read more button */}
         {post.review && (
           <button
             onClick={() => setIsExpanded(!isExpanded)}

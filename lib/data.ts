@@ -1,13 +1,36 @@
-export type Genre =
-  | "Roman"
-  | "Fantasy"
-  | "Science-Fiction"
-  | "Thriller"
-  | "Classique"
-  | "Poesie"
-  | "BD & Manga"
-  | "Contemporain"
-  | "Jeunesse"
+export const genreGroups = {
+  "Littérature Belge": [
+    "Thriller",
+    "Cosy Mystery",
+    "Jeunesse",
+    "BD",
+    "Romance (Noël)",
+    "Feel Good",
+    "Young Adult",
+  ],
+  "Littérature Française": [
+    "Thriller",
+    "Cosy Mystery",
+    "Jeunesse",
+    "BD",
+    "Romance (Noël)",
+    "Feel Good",
+    "Young Adult",
+  ],
+  "Littérature Étrangère": [
+    "Thriller",
+    "Cosy Mystery",
+    "Jeunesse",
+    "BD",
+    "Romance (Noël)",
+    "Feel Good",
+    "Young Adult",
+  ],
+} as const
+
+export type GenreGroup = keyof typeof genreGroups
+type GenreSubcategory = (typeof genreGroups)[GenreGroup][number]
+export type Genre = `${GenreGroup} - ${GenreSubcategory}`
 
 export type BookPost = {
   id: string
@@ -19,19 +42,13 @@ export type BookPost = {
   excerpt: string
   review: string
   coverImage: string
+  coverImages: string[]
   tags: string[]
   isFavorite: boolean
   instagramUrl?: string
 }
 
-export const genres: Genre[] = [
-  "Roman",
-  "Fantasy",
-  "Science-Fiction",
-  "Thriller",
-  "Classique",
-  "Poesie",
-  "BD & Manga",
-  "Contemporain",
-  "Jeunesse",
-]
+export const genres: Genre[] = Object.entries(genreGroups).flatMap(
+  ([group, subcategories]) =>
+    subcategories.map((subcategory) => `${group} - ${subcategory}` as Genre)
+)

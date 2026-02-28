@@ -14,13 +14,23 @@ type DbPost = {
   excerpt: string
   review: string | null
   cover_image: string | null
+  cover_images: string[] | null
   tags: string[] | null
   is_favorite: boolean
   instagram_url: string | null
   created_at: string
 }
 
+function normalizeCoverImages(row: DbPost) {
+  const fallback = row.cover_image || `/placeholder.svg?height=600&width=400`
+  return row.cover_images && row.cover_images.length > 0
+    ? row.cover_images
+    : [fallback]
+}
+
 function toBookPost(row: DbPost): BookPost {
+  const coverImages = normalizeCoverImages(row)
+
   return {
     id: row.id,
     title: row.title,
@@ -30,7 +40,8 @@ function toBookPost(row: DbPost): BookPost {
     date: row.date,
     excerpt: row.excerpt,
     review: row.review || "",
-    coverImage: row.cover_image || `/placeholder.svg?height=600&width=400`,
+    coverImage: coverImages[0],
+    coverImages,
     tags: row.tags || [],
     isFavorite: row.is_favorite,
     instagramUrl: row.instagram_url || undefined,
@@ -73,9 +84,10 @@ export function usePosts() {
           date: post.date,
           excerpt: post.excerpt,
           review: post.review || null,
-          cover_image: post.coverImage?.startsWith("/placeholder")
+          cover_image: post.coverImages[0]?.startsWith("/placeholder")
             ? null
-            : post.coverImage || null,
+            : post.coverImages[0] || null,
+          cover_images: post.coverImages.length > 0 ? post.coverImages : null,
           tags: post.tags.length > 0 ? post.tags : null,
           is_favorite: post.isFavorite,
           instagram_url: post.instagramUrl || null,
@@ -106,12 +118,16 @@ export function usePosts() {
       if (updates.excerpt !== undefined) dbUpdates.excerpt = updates.excerpt
       if (updates.review !== undefined)
         dbUpdates.review = updates.review || null
-      if (updates.coverImage !== undefined)
-        dbUpdates.cover_image = updates.coverImage?.startsWith("/placeholder")
+      if (updates.coverImages !== undefined) {
+        dbUpdates.cover_image = updates.coverImages[0]?.startsWith("/placeholder")
           ? null
-          : updates.coverImage || null
+          : updates.coverImages[0] || null
+        dbUpdates.cover_images =
+          updates.coverImages.length > 0 ? updates.coverImages : null
+      }
       if (updates.tags !== undefined)
-        dbUpdates.tags = updates.tags && updates.tags.length > 0 ? updates.tags : null
+        dbUpdates.tags =
+          updates.tags && updates.tags.length > 0 ? updates.tags : null
       if (updates.isFavorite !== undefined)
         dbUpdates.is_favorite = updates.isFavorite
       if (updates.instagramUrl !== undefined)
@@ -128,7 +144,14 @@ export function usePosts() {
       }
 
       setPosts((prev) =>
-        prev.map((p) => (p.id === id ? { ...p, ...updates } : p))
+        prev.map((p) => {
+          if (p.id !== id) return p
+          const next = { ...p, ...updates }
+          if (updates.coverImages) {
+            next.coverImage = updates.coverImages[0] || p.coverImage
+          }
+          return next
+        })
       )
     },
     [supabase]
