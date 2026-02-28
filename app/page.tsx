@@ -24,6 +24,11 @@ export default function Home() {
           <div className="mx-auto max-w-6xl px-6 py-16 md:py-20">
             <div className="flex flex-col items-center gap-6 text-center">
               <div className="flex flex-col gap-3">
+                <img
+                  src="/branding/anomalie-logo-full.png"
+                  alt="Logo Anomalie Litteraire"
+                  className="mx-auto mb-2 h-auto w-full max-w-[28rem]"
+                />
                 <h1 className="font-serif text-4xl font-bold leading-tight tracking-tight text-balance text-foreground md:text-5xl lg:text-6xl">
                   Anomalie Litt&eacute;raire
                 </h1>

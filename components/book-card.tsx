@@ -4,6 +4,8 @@ import { useState } from "react"
 import {
   Heart,
   Calendar,
+  ChevronLeft,
+  ChevronRight,
   ChevronDown,
   ChevronUp,
   Pencil,
@@ -30,6 +32,21 @@ type BookCardProps = {
 
 export function BookCard({ post, onEdit, onDelete }: BookCardProps) {
   const [isExpanded, setIsExpanded] = useState(false)
+  const [imageIndex, setImageIndex] = useState(0)
+  const [genreGroup, genreStyle = "Style"] = post.genre.split(" - ")
+  const images =
+    post.coverImages && post.coverImages.length > 0
+      ? post.coverImages
+      : [post.coverImage]
+  const currentImage = images[imageIndex]
+
+  function goToPreviousImage() {
+    setImageIndex((prev) => (prev === 0 ? images.length - 1 : prev - 1))
+  }
+
+  function goToNextImage() {
+    setImageIndex((prev) => (prev === images.length - 1 ? 0 : prev + 1))
+  }
 
   return (
     <article className="group relative flex flex-col overflow-hidden rounded-lg border border-border bg-card transition-all hover:shadow-md hover:border-primary/20">
@@ -69,18 +86,59 @@ export function BookCard({ post, onEdit, onDelete }: BookCardProps) {
       )}
 
       {/* Cover image area */}
-      <div className="relative aspect-[3/2] overflow-hidden bg-muted">
+      <div className="relative overflow-hidden bg-muted">
         <img
-          src={post.coverImage}
+          src={currentImage}
           alt={`Couverture de ${post.title} par ${post.author}`}
-          className="size-full object-cover transition-transform duration-500 group-hover:scale-105"
+          className="h-auto w-full object-contain transition-transform duration-500 group-hover:scale-[1.02]"
           crossOrigin="anonymous"
         />
+        {images.length > 1 && (
+          <>
+            <button
+              type="button"
+              onClick={goToPreviousImage}
+              className="absolute left-3 top-1/2 z-20 -translate-y-1/2 rounded-full bg-card/90 p-1.5 backdrop-blur-sm transition-colors hover:bg-card"
+              aria-label="Image precedente"
+            >
+              <ChevronLeft className="size-4" />
+            </button>
+            <button
+              type="button"
+              onClick={goToNextImage}
+              className="absolute right-3 top-1/2 z-20 -translate-y-1/2 rounded-full bg-card/90 p-1.5 backdrop-blur-sm transition-colors hover:bg-card"
+              aria-label="Image suivante"
+            >
+              <ChevronRight className="size-4" />
+            </button>
+            <div className="absolute bottom-3 right-3 rounded-full bg-card/90 px-2 py-0.5 text-xs text-foreground backdrop-blur-sm">
+              {imageIndex + 1}/{images.length}
+            </div>
+            <div className="absolute inset-x-0 bottom-2 flex items-center justify-center gap-1.5">
+              {images.map((image, dotIndex) => (
+                <button
+                  key={`${image}-${dotIndex}`}
+                  type="button"
+                  onClick={() => setImageIndex(dotIndex)}
+                  className={`size-1.5 rounded-full transition-all ${
+                    dotIndex === imageIndex ? "w-4 bg-primary" : "bg-card/90"
+                  }`}
+                  aria-label={`Voir image ${dotIndex + 1}`}
+                />
+              ))}
+            </div>
+          </>
+        )}
         {/* Genre badge overlay */}
         <div className="absolute left-3 top-3">
-          <Badge className="bg-card/90 text-card-foreground backdrop-blur-sm border-0 text-xs">
-            {post.genre}
-          </Badge>
+          <div className="flex items-center gap-1.5 rounded-full bg-card/90 p-1 backdrop-blur-sm">
+            <Badge className="border-0 bg-foreground/10 text-[10px] text-foreground shadow-none">
+              {genreGroup}
+            </Badge>
+            <Badge className="border-0 bg-primary/90 text-[10px] text-primary-foreground shadow-none">
+              {genreStyle}
+            </Badge>
+          </div>
         </div>
         {/* Favorite indicator */}
         {post.isFavorite && (

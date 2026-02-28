@@ -1,6 +1,6 @@
 "use client"
 
-import { BookOpen, Instagram, Lock, LogOut, Loader2 } from "lucide-react"
+import { Instagram, Lock, LogOut, Loader2 } from "lucide-react"
 import Link from "next/link"
 import { useState } from "react"
 import { Button } from "@/components/ui/button"
@@ -54,9 +54,11 @@ export function SiteHeader({ isAdmin, isLoading, onLogin, onLogout }: SiteHeader
     <header className="sticky top-0 z-50 border-b border-border/60 bg-background/80 backdrop-blur-md">
       <div className="mx-auto flex max-w-6xl items-center justify-between px-6 py-4">
         <Link href="/" className="flex items-center gap-3 group">
-          <div className="flex size-10 items-center justify-center rounded-lg bg-primary">
-            <BookOpen className="size-5 text-primary-foreground" />
-          </div>
+          <img
+            src="/branding/anomalie-logo-icon.png"
+            alt="Logo Anomalie Litteraire"
+            className="size-10 rounded-full border border-border object-cover bg-card"
+          />
           <div className="flex flex-col">
             <span className="font-serif text-xl font-bold leading-tight tracking-tight text-foreground">
               Anomalie Litt&eacute;raire

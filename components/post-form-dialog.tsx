@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect } from "react"
+import { useEffect, useMemo } from "react"
 import { useForm } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { z } from "zod"
@@ -20,21 +20,29 @@ import { Switch } from "@/components/ui/switch"
 import {
   Select,
   SelectContent,
+  SelectGroup,
   SelectItem,
+  SelectLabel,
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
-import { genres, type BookPost, type Genre } from "@/lib/data"
+import {
+  genreGroups,
+  type BookPost,
+  type Genre,
+  type GenreGroup,
+} from "@/lib/data"
 
 const postSchema = z.object({
   title: z.string().min(1, "Le titre est requis"),
   author: z.string().min(1, "L'auteur est requis"),
-  genre: z.string().min(1, "Le genre est requis"),
+  literatureGroup: z.string().min(1, "Le style de litterature est requis"),
+  genreStyle: z.string().min(1, "Le style est requis"),
   rating: z.number().min(1).max(5),
   date: z.string().min(1, "La date est requise"),
   excerpt: z.string().min(1, "L'extrait est requis"),
   review: z.string().optional().default(""),
-  coverImage: z.string().optional().default(""),
+  coverImagesText: z.string().optional().default(""),
   instagramUrl: z.string().optional().default(""),
   tags: z.string().optional().default(""),
   isFavorite: z.boolean().default(false),
@@ -79,6 +87,29 @@ function RatingInput({
   )
 }
 
+const groupNames = Object.keys(genreGroups) as GenreGroup[]
+const genreSeparator = " - "
+
+function parseCoverImages(input: string | undefined) {
+  if (!input) return []
+
+  return input
+    .split(/[,\n]/)
+    .map((url) => url.trim())
+    .filter(Boolean)
+}
+
+function splitGenre(value: string | undefined) {
+  if (!value) return { group: "", style: "" }
+  const separatorIndex = value.indexOf(genreSeparator)
+  if (separatorIndex === -1) return { group: "", style: "" }
+
+  return {
+    group: value.slice(0, separatorIndex),
+    style: value.slice(separatorIndex + genreSeparator.length),
+  }
+}
+
 export function PostFormDialog({
   open,
   onOpenChange,
@@ -99,12 +130,13 @@ export function PostFormDialog({
     defaultValues: {
       title: "",
       author: "",
-      genre: "",
+      literatureGroup: "",
+      genreStyle: "",
       rating: 4,
       date: new Date().toISOString().split("T")[0],
       excerpt: "",
       review: "",
-      coverImage: "",
+      coverImagesText: "",
       instagramUrl: "",
       tags: "",
       isFavorite: false,
@@ -113,22 +145,29 @@ export function PostFormDialog({
 
   const ratingValue = watch("rating")
   const isFavoriteValue = watch("isFavorite")
-  const genreValue = watch("genre")
+  const selectedLiteratureGroup = watch("literatureGroup")
+  const selectedGenreStyle = watch("genreStyle")
+  const availableStyles = useMemo<string[]>(() => {
+    if (!selectedLiteratureGroup) return []
+    return [...(genreGroups[selectedLiteratureGroup as GenreGroup] || [])]
+  }, [selectedLiteratureGroup])
 
   useEffect(() => {
     if (open) {
       if (editingPost) {
+        const { group, style } = splitGenre(editingPost.genre)
         reset({
           title: editingPost.title,
           author: editingPost.author,
-          genre: editingPost.genre,
+          literatureGroup: group,
+          genreStyle: style,
           rating: editingPost.rating,
           date: editingPost.date,
           excerpt: editingPost.excerpt,
           review: editingPost.review || "",
-          coverImage: editingPost.coverImage?.startsWith("/placeholder")
-            ? ""
-            : editingPost.coverImage || "",
+          coverImagesText: (editingPost.coverImages || [editingPost.coverImage])
+            .filter((image) => image && !image.startsWith("/placeholder"))
+            .join("\n"),
           instagramUrl: editingPost.instagramUrl || "",
           tags: editingPost.tags.join(", "),
           isFavorite: editingPost.isFavorite,
@@ -137,12 +176,13 @@ export function PostFormDialog({
         reset({
           title: "",
           author: "",
-          genre: "",
+          literatureGroup: "",
+          genreStyle: "",
           rating: 4,
           date: new Date().toISOString().split("T")[0],
           excerpt: "",
           review: "",
-          coverImage: "",
+          coverImagesText: "",
           instagramUrl: "",
           tags: "",
           isFavorite: false,
@@ -152,17 +192,22 @@ export function PostFormDialog({
   }, [open, editingPost, reset])
 
   async function onFormSubmit(data: PostFormData) {
+    const coverImages = parseCoverImages(data.coverImagesText)
+    const normalizedCoverImages =
+      coverImages.length > 0
+        ? coverImages
+        : [`/placeholder.svg?height=600&width=400`]
+
     const bookPost: Omit<BookPost, "id"> = {
       title: data.title.trim(),
       author: data.author.trim(),
-      genre: data.genre as Genre,
+      genre: `${data.literatureGroup}${genreSeparator}${data.genreStyle}` as Genre,
       rating: data.rating,
       date: data.date,
       excerpt: data.excerpt.trim(),
       review: data.review?.trim() || "",
-      coverImage:
-        data.coverImage?.trim() ||
-        `/placeholder.svg?height=600&width=400`,
+      coverImage: normalizedCoverImages[0],
+      coverImages: normalizedCoverImages,
       tags: data.tags
         ? data.tags
             .split(",")
@@ -175,6 +220,16 @@ export function PostFormDialog({
     await onSubmit(bookPost)
     onOpenChange(false)
   }
+
+  useEffect(() => {
+    if (
+      selectedLiteratureGroup &&
+      selectedGenreStyle &&
+      !availableStyles.includes(selectedGenreStyle)
+    ) {
+      setValue("genreStyle", "", { shouldValidate: true })
+    }
+  }, [availableStyles, selectedGenreStyle, selectedLiteratureGroup, setValue])
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -234,30 +289,71 @@ export function PostFormDialog({
           <div className="grid gap-4 sm:grid-cols-2">
             <div className="flex flex-col gap-2">
               <Label>
-                Genre <span className="text-destructive">*</span>
+                Style de litterature <span className="text-destructive">*</span>
               </Label>
               <Select
-                value={genreValue}
-                onValueChange={(v) => setValue("genre", v)}
+                value={selectedLiteratureGroup}
+                onValueChange={(v) => {
+                  setValue("literatureGroup", v, { shouldValidate: true })
+                  setValue("genreStyle", "", { shouldValidate: true })
+                }}
               >
                 <SelectTrigger className="bg-background">
-                  <SelectValue placeholder="Choisir un genre" />
+                  <SelectValue placeholder="Choisir une litterature" />
                 </SelectTrigger>
                 <SelectContent>
-                  {genres.map((g) => (
-                    <SelectItem key={g} value={g}>
-                      {g}
-                    </SelectItem>
-                  ))}
+                  <SelectGroup>
+                    <SelectLabel>Litteratures</SelectLabel>
+                    {groupNames.map((group) => (
+                      <SelectItem key={group} value={group}>
+                        {group}
+                      </SelectItem>
+                    ))}
+                  </SelectGroup>
                 </SelectContent>
               </Select>
-              {errors.genre && (
+              {errors.literatureGroup && (
                 <p className="text-xs text-destructive">
-                  {errors.genre.message}
+                  {errors.literatureGroup.message}
                 </p>
               )}
             </div>
             <div className="flex flex-col gap-2">
+              <Label>
+                Style <span className="text-destructive">*</span>
+              </Label>
+              <Select
+                value={selectedGenreStyle}
+                onValueChange={(v) => setValue("genreStyle", v, { shouldValidate: true })}
+                disabled={!selectedLiteratureGroup}
+              >
+                <SelectTrigger className="bg-background">
+                  <SelectValue
+                    placeholder={
+                      selectedLiteratureGroup
+                        ? "Choisir un style"
+                        : "Selectionnez d'abord une litterature"
+                    }
+                  />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectGroup>
+                    <SelectLabel>Styles disponibles</SelectLabel>
+                    {availableStyles.map((style) => (
+                      <SelectItem key={style} value={style}>
+                        {style}
+                      </SelectItem>
+                    ))}
+                  </SelectGroup>
+                </SelectContent>
+              </Select>
+              {errors.genreStyle && (
+                <p className="text-xs text-destructive">
+                  {errors.genreStyle.message}
+                </p>
+              )}
+            </div>
+            <div className="flex flex-col gap-2 sm:col-span-2">
               <Label htmlFor="date">
                 Date <span className="text-destructive">*</span>
               </Label>
@@ -330,24 +426,24 @@ export function PostFormDialog({
             />
           </div>
 
-          {/* Cover image URL */}
+          {/* Cover images URLs */}
           <div className="flex flex-col gap-2">
-            <Label htmlFor="coverImage">
-              URL de l{"'"}image de couverture{" "}
+            <Label htmlFor="coverImagesText">
+              URLs des images{" "}
               <span className="text-muted-foreground text-xs font-normal">
                 (optionnel)
               </span>
             </Label>
-            <Input
-              id="coverImage"
-              type="url"
-              placeholder="https://..."
-              {...register("coverImage")}
-              className="bg-background"
+            <Textarea
+              id="coverImagesText"
+              rows={3}
+              placeholder={"https://...\nhttps://..."}
+              {...register("coverImagesText")}
+              className="bg-background resize-none"
             />
             <p className="text-xs text-muted-foreground">
-              Collez l{"'"}URL d{"'"}une image de couverture du livre. Si vide,
-              un placeholder sera utilise.
+              Une URL par ligne (ou separees par des virgules). S{"'"}il y en a
+              plusieurs, un carrousel sera affiche sur la carte.
             </p>
           </div>
 

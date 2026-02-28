@@ -1,12 +1,12 @@
 "use client"
 
 import { Search, SlidersHorizontal, Star, X } from "lucide-react"
-import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { genres, type Genre } from "@/lib/data"
+import { genreGroups, type Genre, type GenreGroup } from "@/lib/data"
 
 type SortOption = "date-desc" | "date-asc" | "rating-desc" | "rating-asc"
+const groupNames = Object.keys(genreGroups) as GenreGroup[]
 
 type FilterBarProps = {
   search: string
@@ -81,27 +81,35 @@ export function FilterBar({
         </div>
       </div>
 
-      {/* Genre filter chips */}
-      <div className="flex flex-wrap items-center gap-2">
-        <span className="text-xs font-medium text-muted-foreground uppercase tracking-wider mr-1">
+      {/* Genre filter chips by literature group */}
+      <div className="flex flex-col gap-3">
+        <span className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
           Genres
         </span>
-        {genres.map((genre) => {
-          const isSelected = selectedGenres.includes(genre)
-          return (
-            <button
-              key={genre}
-              onClick={() => onGenreToggle(genre)}
-              className={`inline-flex items-center rounded-full border px-3 py-1 text-xs font-medium transition-colors cursor-pointer ${
-                isSelected
-                  ? "border-primary bg-primary text-primary-foreground"
-                  : "border-border bg-card text-foreground hover:border-primary/50 hover:bg-primary/5"
-              }`}
-            >
-              {genre}
-            </button>
-          )
-        })}
+        {groupNames.map((group) => (
+          <div key={group} className="flex flex-wrap items-center gap-2">
+            <span className="rounded-md bg-muted px-2 py-1 text-[11px] font-medium text-foreground/80">
+              {group}
+            </span>
+            {genreGroups[group].map((subcategory) => {
+              const genre = `${group} - ${subcategory}` as Genre
+              const isSelected = selectedGenres.includes(genre)
+              return (
+                <button
+                  key={genre}
+                  onClick={() => onGenreToggle(genre)}
+                  className={`inline-flex items-center rounded-full border px-3 py-1 text-xs font-medium transition-colors cursor-pointer ${
+                    isSelected
+                      ? "border-primary bg-primary text-primary-foreground"
+                      : "border-border bg-card text-foreground hover:border-primary/50 hover:bg-primary/5"
+                  }`}
+                >
+                  {subcategory}
+                </button>
+              )
+            })}
+          </div>
+        ))}
       </div>
 
       {/* Active filters and count */}

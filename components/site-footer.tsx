@@ -1,4 +1,4 @@
-import { BookOpen, Instagram } from "lucide-react"
+import { Instagram } from "lucide-react"
 import { Separator } from "@/components/ui/separator"
 
 export function SiteFooter() {
@@ -8,7 +8,11 @@ export function SiteFooter() {
         <div className="flex flex-col gap-6 md:flex-row md:items-center md:justify-between">
           <div className="flex flex-col gap-2">
             <div className="flex items-center gap-2">
-              <BookOpen className="size-4 text-primary" />
+              <img
+                src="/branding/anomalie-logo-icon.png"
+                alt="Logo Anomalie Litteraire"
+                className="size-5 rounded-full border border-border object-cover bg-card"
+              />
               <span className="font-serif text-base font-bold text-foreground">
                 Anomalie Litt&eacute;raire
               </span>
