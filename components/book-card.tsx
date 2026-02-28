@@ -34,6 +34,7 @@ export function BookCard({ post, onEdit, onDelete }: BookCardProps) {
   const [isExpanded, setIsExpanded] = useState(false)
   const [imageIndex, setImageIndex] = useState(0)
   const images = post.coverImages.length > 0 ? post.coverImages : [post.coverImage]
+  const [genreGroup, genreStyle = "Style"] = post.genre.split(" - ")
 
   function goToPreviousImage() {
     setImageIndex((prev) => (prev === 0 ? images.length - 1 : prev - 1))
@@ -112,9 +113,14 @@ export function BookCard({ post, onEdit, onDelete }: BookCardProps) {
         )}
 
         <div className="absolute left-3 top-3">
-          <Badge className="bg-card/90 text-card-foreground backdrop-blur-sm border-0 text-xs">
-            {post.genre}
-          </Badge>
+          <div className="flex items-center gap-1.5 rounded-full bg-card/90 p-1 backdrop-blur-sm">
+            <Badge className="border-0 bg-foreground/10 text-[10px] text-foreground shadow-none">
+              {genreGroup}
+            </Badge>
+            <Badge className="border-0 bg-primary/90 text-[10px] text-primary-foreground shadow-none">
+              {genreStyle}
+            </Badge>
+          </div>
         </div>
 
         {post.isFavorite && (

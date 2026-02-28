@@ -1,6 +1,6 @@
 "use client"
 
-import { Search, SlidersHorizontal, Star, X } from "lucide-react"
+import { Search, SlidersHorizontal, Sparkles, Star, X } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { genreGroups, type Genre, type GenreGroup } from "@/lib/data"
@@ -82,36 +82,61 @@ export function FilterBar({
         </div>
       </div>
 
-      {/* Genre filter chips */}
+      {/* Genre filter cards */}
       <div className="flex flex-col gap-3">
-        <span className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
-          Genres
-        </span>
-
-        {groupNames.map((group) => (
-          <div key={group} className="flex flex-wrap items-center gap-2">
-            <span className="rounded-md bg-muted px-2 py-1 text-[11px] font-medium text-foreground/80">
-              {group}
+        <div className="flex items-center gap-2 text-xs font-medium uppercase tracking-wider text-muted-foreground">
+          <Sparkles className="size-3.5" />
+          <span>Genres</span>
+          {selectedGenres.length > 0 && (
+            <span className="rounded-full border border-primary/20 bg-primary/10 px-2 py-0.5 text-[10px] text-primary">
+              {selectedGenres.length} actif{selectedGenres.length > 1 ? "s" : ""}
             </span>
-            {genreGroups[group].map((subcategory) => {
-              const genre = `${group} - ${subcategory}` as Genre
-              const isSelected = selectedGenres.includes(genre)
-              return (
-                <button
-                  key={genre}
-                  onClick={() => onGenreToggle(genre)}
-                  className={`inline-flex items-center rounded-full border px-3 py-1 text-xs font-medium transition-colors cursor-pointer ${
-                    isSelected
-                      ? "border-primary bg-primary text-primary-foreground"
-                      : "border-border bg-card text-foreground hover:border-primary/50 hover:bg-primary/5"
-                  }`}
-                >
-                  {subcategory}
-                </button>
-              )
-            })}
-          </div>
-        ))}
+          )}
+        </div>
+
+        <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+          {groupNames.map((group) => {
+            const selectedInGroup = genreGroups[group].filter((subcategory) =>
+              selectedGenres.includes(`${group} - ${subcategory}` as Genre)
+            ).length
+
+            return (
+              <div
+                key={group}
+                className="rounded-xl border border-border/70 bg-gradient-to-br from-card via-card to-muted/40 p-3 shadow-sm"
+              >
+                <div className="mb-2 flex items-center justify-between">
+                  <span className="text-xs font-semibold tracking-wide text-foreground">
+                    {group}
+                  </span>
+                  <span className="rounded-full bg-muted px-2 py-0.5 text-[10px] text-muted-foreground">
+                    {selectedInGroup}/{genreGroups[group].length}
+                  </span>
+                </div>
+
+                <div className="flex flex-wrap gap-1.5">
+                  {genreGroups[group].map((subcategory) => {
+                    const genre = `${group} - ${subcategory}` as Genre
+                    const isSelected = selectedGenres.includes(genre)
+                    return (
+                      <button
+                        key={genre}
+                        onClick={() => onGenreToggle(genre)}
+                        className={`inline-flex items-center rounded-full border px-2.5 py-1 text-[11px] font-medium transition-colors cursor-pointer ${
+                          isSelected
+                            ? "border-primary/70 bg-primary text-primary-foreground shadow-sm"
+                            : "border-border/80 bg-background/80 text-foreground hover:border-primary/50 hover:bg-primary/5"
+                        }`}
+                      >
+                        {subcategory}
+                      </button>
+                    )
+                  })}
+                </div>
+              </div>
+            )
+          })}
+        </div>
       </div>
 
       {/* Active filters and count */}
