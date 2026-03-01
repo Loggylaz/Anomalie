@@ -14,7 +14,7 @@ const playfair = Playfair_Display({
 })
 
 export const metadata: Metadata = {
-  title: 'Anomalie Litt\u00e9raire | Chroniques & Avis Litt\u00e9raires',
+  title: 'Anomalie Litt\u00e9raire | Chroniques Litt\u00e9raires',
   description: 'Blog litt\u00e9raire inspir\u00e9 du compte Instagram @anomalie.litteraire. D\u00e9couvrez des chroniques de livres, des avis et recommandations par genre.',
   icons: {
     icon: [
