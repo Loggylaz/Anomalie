@@ -64,7 +64,7 @@ export function SiteHeader({ isAdmin, isLoading, onLogin, onLogout }: SiteHeader
               Anomalie Litt&eacute;raire
             </span>
             <span className="text-xs text-muted-foreground leading-tight">
-              Chroniques & avis litt&eacute;raires
+              Chroniques litt&eacute;raires
             </span>
           </div>
         </Link>
