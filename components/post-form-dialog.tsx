@@ -249,20 +249,22 @@ export function PostFormDialog({
     setImportSuccess(false)
 
     try {
-      const response = await fetch(`/api/instagram?url=${encodeURIComponent(url)}`)
-      const data = await response.json()
+      const oembedUrl = `https://api.instagram.com/oembed/?url=${encodeURIComponent(url)}&omitscript=true`
+      const response = await fetch(oembedUrl)
 
       if (!response.ok) {
-        setImportError(data.error || "Erreur lors de l'import")
+        setImportError(`Post introuvable ou non public (code ${response.status})`)
         return
       }
 
-      if (data.caption) {
-        setValue("excerpt", data.caption, { shouldValidate: true })
+      const data = await response.json()
+
+      if (data.title) {
+        setValue("excerpt", data.title, { shouldValidate: true })
       }
-      if (data.thumbnailUrl) {
+      if (data.thumbnail_url) {
         const current = getValues("coverImagesText")
-        const next = current ? `${current}\n${data.thumbnailUrl}` : data.thumbnailUrl
+        const next = current ? `${current}\n${data.thumbnail_url}` : data.thumbnail_url
         setValue("coverImagesText", next)
       }
       setValue("instagramUrl", url)
