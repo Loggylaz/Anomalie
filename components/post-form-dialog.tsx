@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from "react"
 import { useForm } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { z } from "zod"
-import { ArrowDown, ArrowUp, Star, Trash2, Upload } from "lucide-react"
+import { ArrowDown, ArrowUp, Link2, Loader2, Star, Trash2, Upload } from "lucide-react"
 import {
   Dialog,
   DialogContent,
@@ -115,11 +115,16 @@ export function PostFormDialog({
   const [selectedFiles, setSelectedFiles] = useState<Array<{ id: string; file: File }>>([])
   const [uploadError, setUploadError] = useState<string | null>(null)
   const [isUploadingFiles, setIsUploadingFiles] = useState(false)
+  const [importUrl, setImportUrl] = useState("")
+  const [isImporting, setIsImporting] = useState(false)
+  const [importError, setImportError] = useState<string | null>(null)
+  const [importSuccess, setImportSuccess] = useState(false)
 
   const {
     register,
     handleSubmit,
     setValue,
+    getValues,
     watch,
     reset,
     formState: { errors },
@@ -235,6 +240,41 @@ export function PostFormDialog({
     return urls
   }
 
+  async function handleInstagramImport() {
+    const url = importUrl.trim()
+    if (!url) return
+
+    setIsImporting(true)
+    setImportError(null)
+    setImportSuccess(false)
+
+    try {
+      const response = await fetch(`/api/instagram?url=${encodeURIComponent(url)}`)
+      const data = await response.json()
+
+      if (!response.ok) {
+        setImportError(data.error || "Erreur lors de l'import")
+        return
+      }
+
+      if (data.caption) {
+        setValue("excerpt", data.caption, { shouldValidate: true })
+      }
+      if (data.thumbnailUrl) {
+        const current = getValues("coverImagesText")
+        const next = current ? `${current}\n${data.thumbnailUrl}` : data.thumbnailUrl
+        setValue("coverImagesText", next)
+      }
+      setValue("instagramUrl", url)
+      setImportUrl("")
+      setImportSuccess(true)
+    } catch {
+      setImportError("Impossible de contacter l'API Instagram")
+    } finally {
+      setIsImporting(false)
+    }
+  }
+
   async function onFormSubmit(data: PostFormData) {
     const urlImages = parseCoverImages(data.coverImagesText)
     let uploadedImages: string[] = []
@@ -322,6 +362,57 @@ export function PostFormDialog({
           onSubmit={handleSubmit(onFormSubmit)}
           className="flex min-w-0 flex-col gap-5 pt-2"
         >
+          {!isEditing && (
+            <div className="rounded-lg border border-border/60 bg-muted/20 p-4">
+              <div className="mb-3 flex items-center gap-2">
+                <Link2 className="size-4 text-muted-foreground" />
+                <span className="text-sm font-medium">Importer depuis Instagram</span>
+              </div>
+              <div className="flex gap-2">
+                <Input
+                  placeholder="https://www.instagram.com/p/..."
+                  value={importUrl}
+                  onChange={(e) => {
+                    setImportUrl(e.target.value)
+                    setImportError(null)
+                    setImportSuccess(false)
+                  }}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") {
+                      e.preventDefault()
+                      handleInstagramImport()
+                    }
+                  }}
+                  className="bg-background"
+                />
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={handleInstagramImport}
+                  disabled={isImporting || !importUrl.trim()}
+                  className="shrink-0"
+                >
+                  {isImporting ? (
+                    <Loader2 className="size-4 animate-spin" />
+                  ) : (
+                    "Importer"
+                  )}
+                </Button>
+              </div>
+              {importError && (
+                <p className="mt-2 text-xs text-destructive">{importError}</p>
+              )}
+              {importSuccess && (
+                <p className="mt-2 text-xs text-green-600">
+                  Legende et image importees avec succes.
+                </p>
+              )}
+              <p className="mt-2 text-xs text-muted-foreground">
+                Pre-remplit la legende et l&apos;image de couverture depuis un post public.
+              </p>
+            </div>
+          )}
+
           <div className="grid gap-4 sm:grid-cols-2">
             <div className="flex flex-col gap-2">
               <Label htmlFor="title">
