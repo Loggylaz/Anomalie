@@ -249,8 +249,8 @@ export function PostFormDialog({
     setImportSuccess(false)
 
     try {
-      const oembedUrl = `https://api.instagram.com/oembed/?url=${encodeURIComponent(url)}&omitscript=true`
-      const response = await fetch(oembedUrl)
+      const igUrl = `https://api.instagram.com/oembed/?url=${encodeURIComponent(url)}&omitscript=true`
+      const response = await fetch(`https://corsproxy.io/?url=${encodeURIComponent(igUrl)}`)
 
       if (!response.ok) {
         setImportError(`Post introuvable ou non public (code ${response.status})`)
