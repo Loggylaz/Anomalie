@@ -244,7 +244,7 @@ export function PostFormDialog({
     const url = importUrl.trim()
     if (!url) return
 
-    const match = url.match(/instagram\.com\/(?:p|reel|tv)\/([A-Za-z0-9_-]+)/)
+    const match = url.match(/instagram\.com\/(?:[^/]+\/)?(?:p|reel|tv)\/([A-Za-z0-9_-]+)/)
     if (!match) {
       setImportError("URL Instagram invalide")
       return
