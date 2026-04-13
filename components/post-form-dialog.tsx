@@ -244,34 +244,56 @@ export function PostFormDialog({
     const url = importUrl.trim()
     if (!url) return
 
+    const match = url.match(/instagram\.com\/(?:p|reel|tv)\/([A-Za-z0-9_-]+)/)
+    if (!match) {
+      setImportError("URL Instagram invalide")
+      return
+    }
+    const shortcode = match[1]
+
     setIsImporting(true)
     setImportError(null)
     setImportSuccess(false)
 
     try {
-      const igUrl = `https://api.instagram.com/oembed/?url=${encodeURIComponent(url)}&omitscript=true`
-      const response = await fetch(`https://corsproxy.io/?url=${encodeURIComponent(igUrl)}`)
+      const embedUrl = `https://www.instagram.com/p/${shortcode}/embed/captioned/`
+      const res = await fetch(`https://corsproxy.io/?url=${encodeURIComponent(embedUrl)}`)
+      if (!res.ok) throw new Error(`HTTP ${res.status}`)
 
-      if (!response.ok) {
-        setImportError(`Post introuvable ou non public (code ${response.status})`)
+      const html = await res.text()
+
+      // Extraire l'image depuis les URLs cdninstagram dans le HTML
+      const imgMatch = html.match(/https:\/\/[^"'\s]+(?:cdninstagram\.com|fbcdn\.net)[^"'\s]+\.jpg[^"'\s]*/i)
+      const imageUrl = imgMatch ? imgMatch[0].replace(/&amp;/g, "&") : ""
+
+      // Extraire la legende depuis le JSON embarque dans la page
+      let caption = ""
+      const jsonMatch = html.match(/"text"\s*:\s*"((?:[^"\\]|\\.)*)"/i)
+        || html.match(/class="Caption"[^>]*>\s*<span[^>]*>([\s\S]*?)<\/span>/i)
+      if (jsonMatch) {
+        caption = jsonMatch[1]
+          .replace(/\\n/g, "\n")
+          .replace(/\\u0026/g, "&")
+          .replace(/\\"/g, '"')
+          .replace(/\\/g, "")
+          .trim()
+      }
+
+      if (!caption && !imageUrl) {
+        setImportError("Aucune donnée trouvée — le post est peut-être privé ou Instagram a changé son format.")
         return
       }
 
-      const data = await response.json()
-
-      if (data.title) {
-        setValue("excerpt", data.title, { shouldValidate: true })
-      }
-      if (data.thumbnail_url) {
+      if (caption) setValue("excerpt", caption, { shouldValidate: true })
+      if (imageUrl) {
         const current = getValues("coverImagesText")
-        const next = current ? `${current}\n${data.thumbnail_url}` : data.thumbnail_url
-        setValue("coverImagesText", next)
+        setValue("coverImagesText", current ? `${current}\n${imageUrl}` : imageUrl)
       }
       setValue("instagramUrl", url)
       setImportUrl("")
       setImportSuccess(true)
     } catch {
-      setImportError("Impossible de contacter l'API Instagram")
+      setImportError("Impossible de récupérer le post")
     } finally {
       setIsImporting(false)
     }
@@ -368,17 +390,13 @@ export function PostFormDialog({
             <div className="rounded-lg border border-border/60 bg-muted/20 p-4">
               <div className="mb-3 flex items-center gap-2">
                 <Link2 className="size-4 text-muted-foreground" />
-                <span className="text-sm font-medium">Importer depuis Instagram</span>
+                <span className="text-sm font-medium">Lien du post Instagram</span>
               </div>
               <div className="flex gap-2">
                 <Input
                   placeholder="https://www.instagram.com/p/..."
                   value={importUrl}
-                  onChange={(e) => {
-                    setImportUrl(e.target.value)
-                    setImportError(null)
-                    setImportSuccess(false)
-                  }}
+                  onChange={(e) => setImportUrl(e.target.value)}
                   onKeyDown={(e) => {
                     if (e.key === "Enter") {
                       e.preventDefault()
@@ -394,11 +412,9 @@ export function PostFormDialog({
                   disabled={isImporting || !importUrl.trim()}
                   className="shrink-0"
                 >
-                  {isImporting ? (
-                    <Loader2 className="size-4 animate-spin" />
-                  ) : (
-                    "Importer"
-                  )}
+                  {isImporting
+                    ? <Loader2 className="size-4 animate-spin" />
+                    : "Importer"}
                 </Button>
               </div>
               {importError && (
@@ -406,11 +422,11 @@ export function PostFormDialog({
               )}
               {importSuccess && (
                 <p className="mt-2 text-xs text-green-600">
-                  Legende et image importees avec succes.
+                  Légende et image pré-remplies.
                 </p>
               )}
               <p className="mt-2 text-xs text-muted-foreground">
-                Pre-remplit la legende et l&apos;image de couverture depuis un post public.
+                Fonctionne sur les posts publics. La légende et l&apos;image se remplissent automatiquement.
               </p>
             </div>
           )}
